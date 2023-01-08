@@ -17,6 +17,7 @@
 # limitations under the License.
 
 from . import (
+    bert_2d,
     albert,
     altclip,
     audio_spectrogram_transformer,

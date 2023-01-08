@@ -123,6 +123,7 @@ _import_structure = {
     ],
     "models": [],
     # Models
+    "models.bert_2d": ["BERT_2D_PRETRAINED_CONFIG_ARCHIVE_MAP", "Bert2dConfig", "Bert2dTokenizer"],
     "models.albert": ["ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "AlbertConfig"],
     "models.altclip": [
         "ALTCLIP_PRETRAINED_CONFIG_ARCHIVE_MAP",
@@ -631,6 +632,7 @@ except OptionalDependencyNotAvailable:
     ]
 else:
     # Fast tokenizers structure
+    _import_structure["models.bert_2d"].append("Bert2dTokenizerFast")
     _import_structure["models.albert"].append("AlbertTokenizerFast")
     _import_structure["models.bart"].append("BartTokenizerFast")
     _import_structure["models.barthez"].append("BarthezTokenizerFast")
@@ -914,6 +916,22 @@ else:
     _import_structure["modeling_utils"] = ["PreTrainedModel"]
 
     # PyTorch models structure
+
+    _import_structure["models.bert_2d"].extend(
+        [
+            "BERT_2D_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "Bert2dForMaskedLM",
+            "Bert2dForCausalLM",
+            "Bert2dForMultipleChoice",
+            "Bert2dForQuestionAnswering",
+            "Bert2dForSequenceClassification",
+            "Bert2dForTokenClassification",
+            "Bert2dLayer",
+            "Bert2dModel",
+            "Bert2dPreTrainedModel",
+            "load_tf_weights_in_bert_2d",
+        ]
+    )
     _import_structure["models.albert"].extend(
         [
             "ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -2541,6 +2559,21 @@ else:
         "shape_list",
     ]
     # TensorFlow models structure
+
+    _import_structure["models.bert_2d"].extend(
+        [
+            "TF_BERT_2D_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "TFBert2dForMaskedLM",
+            "TFBert2dForCausalLM",
+            "TFBert2dForMultipleChoice",
+            "TFBert2dForQuestionAnswering",
+            "TFBert2dForSequenceClassification",
+            "TFBert2dForTokenClassification",
+            "TFBert2dLayer",
+            "TFBert2dModel",
+            "TFBert2dPreTrainedModel",
+        ]
+    )
     _import_structure["models.albert"].extend(
         [
             "TF_ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -3499,6 +3532,7 @@ if TYPE_CHECKING:
         load_tf2_weights_in_pytorch_model,
     )
     from .models.albert import ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, AlbertConfig
+    from .models.bert_2d import BERT_2D_PRETRAINED_CONFIG_ARCHIVE_MAP, Bert2dConfig, Bert2dTokenizer
     from .models.altclip import (
         ALTCLIP_PRETRAINED_CONFIG_ARCHIVE_MAP,
         AltCLIPConfig,
@@ -3966,6 +4000,7 @@ if TYPE_CHECKING:
         from .utils.dummy_tokenizers_objects import *
     else:
         # Fast tokenizers imports
+        from .models.bert_2d import Bert2dTokenizerFast
         from .models.albert import AlbertTokenizerFast
         from .models.bart import BartTokenizerFast
         from .models.barthez import BarthezTokenizerFast
@@ -4193,6 +4228,20 @@ if TYPE_CHECKING:
         from .modeling_utils import PreTrainedModel
 
         # PyTorch model imports
+
+        from .models.bert_2d import (
+            BERT_2D_PRETRAINED_MODEL_ARCHIVE_LIST,
+            Bert2dForMaskedLM,
+            Bert2dForCausalLM,
+            Bert2dForMultipleChoice,
+            Bert2dForQuestionAnswering,
+            Bert2dForSequenceClassification,
+            Bert2dForTokenClassification,
+            Bert2dLayer,
+            Bert2dModel,
+            Bert2dPreTrainedModel,
+            load_tf_weights_in_bert_2d,
+        )
         from .models.albert import (
             ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
             AlbertForMaskedLM,
@@ -5533,6 +5582,19 @@ if TYPE_CHECKING:
         from .modeling_tf_utils import TFPreTrainedModel, TFSequenceSummary, TFSharedEmbeddings, shape_list
 
         # TensorFlow model imports
+
+        from .models.bert_2d import (
+            TF_BERT_2D_PRETRAINED_MODEL_ARCHIVE_LIST,
+            TFBert2dForMaskedLM,
+            TFBert2dForCausalLM,
+            TFBert2dForMultipleChoice,
+            TFBert2dForQuestionAnswering,
+            TFBert2dForSequenceClassification,
+            TFBert2dForTokenClassification,
+            TFBert2dLayer,
+            TFBert2dModel,
+            TFBert2dPreTrainedModel,
+        )
         from .models.albert import (
             TF_ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
             TFAlbertForMaskedLM,

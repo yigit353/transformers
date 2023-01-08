@@ -29,6 +29,7 @@ logger = logging.get_logger(__name__)
 TF_MODEL_MAPPING_NAMES = OrderedDict(
     [
         # Base model mapping
+        ("bert_2d", "TFBert2dModel"),
         ("albert", "TFAlbertModel"),
         ("bart", "TFBartModel"),
         ("bert", "TFBertModel"),
@@ -126,6 +127,7 @@ TF_MODEL_FOR_PRETRAINING_MAPPING_NAMES = OrderedDict(
 TF_MODEL_WITH_LM_HEAD_MAPPING_NAMES = OrderedDict(
     [
         # Model with LM heads mapping
+("bert_2d", "TFBert2dForMaskedLM"),
         ("albert", "TFAlbertForMaskedLM"),
         ("bart", "TFBartForConditionalGeneration"),
         ("bert", "TFBertForMaskedLM"),
@@ -165,6 +167,7 @@ TF_MODEL_WITH_LM_HEAD_MAPPING_NAMES = OrderedDict(
 TF_MODEL_FOR_CAUSAL_LM_MAPPING_NAMES = OrderedDict(
     [
         # Model for Causal LM mapping
+("bert_2d", "TFBert2dForCausalLM"),
         ("bert", "TFBertLMHeadModel"),
         ("camembert", "TFCamembertForCausalLM"),
         ("ctrl", "TFCTRLLMHeadModel"),
@@ -225,6 +228,7 @@ TF_MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES = OrderedDict(
 TF_MODEL_FOR_MASKED_LM_MAPPING_NAMES = OrderedDict(
     [
         # Model for Masked LM mapping
+("bert_2d", "TFBert2dForMaskedLM"),
         ("albert", "TFAlbertForMaskedLM"),
         ("bert", "TFBertForMaskedLM"),
         ("camembert", "TFCamembertForMaskedLM"),
@@ -276,6 +280,7 @@ TF_MODEL_FOR_SPEECH_SEQ_2_SEQ_MAPPING_NAMES = OrderedDict(
 TF_MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
     [
         # Model for Sequence Classification mapping
+("bert_2d", "TFBert2dForSequenceClassification"),
         ("albert", "TFAlbertForSequenceClassification"),
         ("bart", "TFBartForSequenceClassification"),
         ("bert", "TFBertForSequenceClassification"),
@@ -313,6 +318,7 @@ TF_MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
 TF_MODEL_FOR_QUESTION_ANSWERING_MAPPING_NAMES = OrderedDict(
     [
         # Model for Question Answering mapping
+("bert_2d", "TFBert2dForQuestionAnswering"),
         ("albert", "TFAlbertForQuestionAnswering"),
         ("bert", "TFBertForQuestionAnswering"),
         ("camembert", "TFCamembertForQuestionAnswering"),
@@ -355,6 +361,7 @@ TF_MODEL_FOR_TABLE_QUESTION_ANSWERING_MAPPING_NAMES = OrderedDict(
 TF_MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
     [
         # Model for Token Classification mapping
+("bert_2d", "TFBert2dForTokenClassification"),
         ("albert", "TFAlbertForTokenClassification"),
         ("bert", "TFBertForTokenClassification"),
         ("camembert", "TFCamembertForTokenClassification"),
@@ -384,6 +391,7 @@ TF_MODEL_FOR_TOKEN_CLASSIFICATION_MAPPING_NAMES = OrderedDict(
 TF_MODEL_FOR_MULTIPLE_CHOICE_MAPPING_NAMES = OrderedDict(
     [
         # Model for Multiple Choice mapping
+("bert_2d", "TFBert2dForMultipleChoice"),
         ("albert", "TFAlbertForMultipleChoice"),
         ("bert", "TFBertForMultipleChoice"),
         ("camembert", "TFCamembertForMultipleChoice"),

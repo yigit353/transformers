@@ -45,7 +45,7 @@ else:
         "configuration_bert_2d": ["BERT_2D_PRETRAINED_CONFIG_ARCHIVE_MAP", "Bert2dConfig", "Bert2dOnnxConfig"],
         "tokenization_bert_2d": ["BasicTokenizer", "Bert2dTokenizer", "WordpieceTokenizer"],
         "modeling_bert_2d": [
-            "BERT_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "BERT_2D_PRETRAINED_MODEL_ARCHIVE_LIST",
             "Bert2dForMaskedLM",
             "Bert2dForMultipleChoice",
             "Bert2dForNextSentencePrediction",

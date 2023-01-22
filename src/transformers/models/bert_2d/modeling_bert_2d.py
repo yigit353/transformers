@@ -26,7 +26,6 @@ import torch.utils.checkpoint
 from torch import nn
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss, MSELoss
 
-from .utils_bert_2d import create_word_ids, create_subword_ids
 from .configuration_bert_2d import Bert2dConfig
 from ...activations import ACT2FN
 from ...modeling_outputs import (
@@ -47,7 +46,7 @@ from ...utils import (add_code_sample_docstrings, add_start_docstrings, add_star
 
 logger = logging.get_logger(__name__)
 
-_CHECKPOINT_FOR_DOC = "bert-base-uncased"
+_CHECKPOINT_FOR_DOC = "bert2d-base-uncased"
 _CONFIG_FOR_DOC = "Bert2dConfig"
 _TOKENIZER_FOR_DOC = "Bert2dTokenizer"
 
@@ -152,28 +151,34 @@ def load_tf_weights_in_bert(model, config, tf_checkpoint_path):
 class Bert2dEmbeddings(nn.Module):
     """Construct the embeddings from word, position and token_type embeddings."""
 
-    def __init__(self, config):
+    def __init__(self, config: Bert2dConfig):
         super().__init__()
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
-        self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+        self.whole_word_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
+
+        subword_position_embeddings = config.subword_intermediate_position_embeddings + 2
+        self.subword_embeddings = nn.Embedding(subword_position_embeddings, config.hidden_size)
 
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
-        self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
-        self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
+        # self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
+        self.register_buffer("word_position_ids", torch.zeros(config.max_position_embeddings).expand((1, -1)))
         self.register_buffer(
-            "token_type_ids", torch.zeros(self.position_ids.size(), dtype=torch.long), persistent=False
+            "subword_ids", torch.zeros(self.word_position_ids.size(), dtype=torch.long), persistent=False)
+        self.register_buffer(
+            "token_type_ids", torch.zeros(self.word_position_ids.size(), dtype=torch.long), persistent=False
         )
 
     def forward(
             self,
             input_ids: Optional[torch.LongTensor] = None,
             token_type_ids: Optional[torch.LongTensor] = None,
-            position_ids: Optional[torch.LongTensor] = None,
+            word_position_ids: Optional[torch.LongTensor] = None,
+            subword_ids: Optional[torch.LongTensor] = None,
             inputs_embeds: Optional[torch.FloatTensor] = None,
             past_key_values_length: int = 0,
     ) -> torch.Tensor:
@@ -184,8 +189,8 @@ class Bert2dEmbeddings(nn.Module):
 
         seq_length = input_shape[1]
 
-        if position_ids is None:
-            position_ids = self.position_ids[:, past_key_values_length: seq_length + past_key_values_length]
+        if word_position_ids is None:
+            word_position_ids = self.position_ids[:, past_key_values_length: seq_length + past_key_values_length]
 
         # Setting the token_type_ids to the registered buffer in constructor where it is all zeros, which usually occurs
         # when its auto-generated, registered buffer helps users when tracing the model without passing token_type_ids, solves
@@ -200,12 +205,12 @@ class Bert2dEmbeddings(nn.Module):
 
         if inputs_embeds is None:
             inputs_embeds = self.word_embeddings(input_ids)
-        token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
-        embeddings = inputs_embeds + token_type_embeddings
-        if self.position_embedding_type == "absolute":
-            position_embeddings = self.position_embeddings(position_ids)
-            embeddings += position_embeddings
+        token_type_embeddings = self.token_type_embeddings(token_type_ids)
+        whole_word_position_embeddings = self.whole_word_embeddings(word_position_ids)
+        subword_embeddings = self.subword_embeddings(subword_ids)
+
+        embeddings = inputs_embeds + token_type_embeddings + whole_word_position_embeddings + subword_embeddings
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
         return embeddings
@@ -712,7 +717,7 @@ class Bert2dPreTrainedModel(PreTrainedModel):
 
     config_class = Bert2dConfig
     load_tf_weights = load_tf_weights_in_bert
-    base_model_prefix = "bert"
+    base_model_prefix = "bert2d"
     supports_gradient_checkpointing = True
     _keys_to_ignore_on_load_missing = [r"position_ids"]
 
@@ -892,7 +897,8 @@ class Bert2dModel(Bert2dPreTrainedModel):
             input_ids: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             token_type_ids: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.Tensor] = None,
+            word_position_ids: Optional[torch.Tensor] = None,
+            subword_ids: Optional[torch.Tensor] = None,
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
             encoder_hidden_states: Optional[torch.Tensor] = None,
@@ -984,7 +990,7 @@ class Bert2dModel(Bert2dPreTrainedModel):
 
         embedding_output = self.embeddings(
             input_ids=input_ids,
-            position_ids=position_ids,
+            word_position_ids=word_position_ids,
             token_type_ids=token_type_ids,
             inputs_embeds=inputs_embeds,
             past_key_values_length=past_key_values_length,
@@ -1400,7 +1406,8 @@ class Bert2dForNextSentencePrediction(Bert2dPreTrainedModel):
             input_ids: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             token_type_ids: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.Tensor] = None,
+            word_position_ids: Optional[torch.Tensor] = None,
+            subword_ids: Optional[torch.Tensor] = None,
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
             labels: Optional[torch.Tensor] = None,
@@ -1452,7 +1459,8 @@ class Bert2dForNextSentencePrediction(Bert2dPreTrainedModel):
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
-            position_ids=position_ids,
+            word_position_ids=word_position_ids,
+            subword_ids=subword_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
             output_attentions=output_attentions,
@@ -1518,7 +1526,8 @@ class Bert2dForSequenceClassification(Bert2dPreTrainedModel):
             input_ids: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             token_type_ids: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.Tensor] = None,
+            word_position_ids: Optional[torch.Tensor] = None,
+            subword_ids: Optional[torch.Tensor] = None,
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
             labels: Optional[torch.Tensor] = None,
@@ -1538,7 +1547,8 @@ class Bert2dForSequenceClassification(Bert2dPreTrainedModel):
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
-            position_ids=position_ids,
+            word_position_ids=word_position_ids,
+            subword_ids=subword_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
             output_attentions=output_attentions,
@@ -1618,7 +1628,8 @@ class Bert2dForMultipleChoice(Bert2dPreTrainedModel):
             input_ids: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             token_type_ids: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.Tensor] = None,
+            word_position_ids: Optional[torch.Tensor] = None,
+            subword_ids: Optional[torch.Tensor] = None,
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
             labels: Optional[torch.Tensor] = None,
@@ -1638,7 +1649,8 @@ class Bert2dForMultipleChoice(Bert2dPreTrainedModel):
         input_ids = input_ids.view(-1, input_ids.size(-1)) if input_ids is not None else None
         attention_mask = attention_mask.view(-1, attention_mask.size(-1)) if attention_mask is not None else None
         token_type_ids = token_type_ids.view(-1, token_type_ids.size(-1)) if token_type_ids is not None else None
-        position_ids = position_ids.view(-1, position_ids.size(-1)) if position_ids is not None else None
+        word_position_ids = word_position_ids.view(-1, word_position_ids.size(-1)) if word_position_ids is not None else None
+        subword_ids = subword_ids.view(-1, subword_ids.size(-1)) if subword_ids is not None else None
         inputs_embeds = (
             inputs_embeds.view(-1, inputs_embeds.size(-2), inputs_embeds.size(-1))
             if inputs_embeds is not None
@@ -1649,7 +1661,8 @@ class Bert2dForMultipleChoice(Bert2dPreTrainedModel):
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
-            position_ids=position_ids,
+            word_position_ids=word_position_ids,
+            subword_ids=subword_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
             output_attentions=output_attentions,
@@ -1718,7 +1731,8 @@ class Bert2dForTokenClassification(Bert2dPreTrainedModel):
             input_ids: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             token_type_ids: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.Tensor] = None,
+            word_position_ids: Optional[torch.Tensor] = None,
+            subword_ids: Optional[torch.Tensor] = None,
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
             labels: Optional[torch.Tensor] = None,
@@ -1736,7 +1750,8 @@ class Bert2dForTokenClassification(Bert2dPreTrainedModel):
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
-            position_ids=position_ids,
+            word_position_ids=word_position_ids,
+            subword_ids=subword_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
             output_attentions=output_attentions,
@@ -1802,7 +1817,8 @@ class Bert2dForQuestionAnswering(Bert2dPreTrainedModel):
             input_ids: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             token_type_ids: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.Tensor] = None,
+            word_position_ids: Optional[torch.Tensor] = None,
+            subword_ids: Optional[torch.Tensor] = None,
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
             start_positions: Optional[torch.Tensor] = None,
@@ -1827,7 +1843,8 @@ class Bert2dForQuestionAnswering(Bert2dPreTrainedModel):
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
-            position_ids=position_ids,
+            word_position_ids=word_position_ids,
+            subword_ids=subword_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
             output_attentions=output_attentions,

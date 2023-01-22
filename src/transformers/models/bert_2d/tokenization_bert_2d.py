@@ -14,15 +14,15 @@
 # limitations under the License.
 """Tokenization classes for Bert."""
 
-
 import collections
+import math
 import os
-import unicodedata
 from typing import List, Optional, Tuple
 
-from ...tokenization_utils import PreTrainedTokenizer, _is_control, _is_punctuation, _is_whitespace
-from ...utils import logging
+import unicodedata
 
+from ...tokenization_utils import _is_control, _is_punctuation, _is_whitespace, PreTrainedTokenizer
+from ...utils import logging
 
 logger = logging.get_logger(__name__)
 
@@ -61,6 +61,11 @@ def whitespace_tokenize(text):
         return []
     tokens = text.split()
     return tokens
+
+
+def is_subword(token: str) -> bool:
+    """Returns if a token is a subword"""
+    return token.startswith("##")
 
 
 class Bert2dTokenizer(PreTrainedTokenizer):
@@ -111,19 +116,23 @@ class Bert2dTokenizer(PreTrainedTokenizer):
     max_model_input_sizes = PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES
 
     def __init__(
-        self,
-        vocab_file,
-        do_lower_case=True,
-        do_basic_tokenize=True,
-        never_split=None,
-        unk_token="[UNK]",
-        sep_token="[SEP]",
-        pad_token="[PAD]",
-        cls_token="[CLS]",
-        mask_token="[MASK]",
-        tokenize_chinese_chars=True,
-        strip_accents=None,
-        **kwargs
+            self,
+            vocab_file,
+            do_lower_case=True,
+            do_basic_tokenize=True,
+            never_split=None,
+            unk_token="[UNK]",
+            sep_token="[SEP]",
+            pad_token="[PAD]",
+            cls_token="[CLS]",
+            mask_token="[MASK]",
+            tokenize_chinese_chars=True,
+            strip_accents=None,
+            max_intermediate_subword_positions_per_word=1,
+            subword_embedding_order="ending_first",
+            intermediate_subword_distribution_strategy="uniform",
+            restart_new_sentence=False,
+            **kwargs
     ):
         super().__init__(
             do_lower_case=do_lower_case,
@@ -155,6 +164,9 @@ class Bert2dTokenizer(PreTrainedTokenizer):
                 strip_accents=strip_accents,
             )
         self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self.vocab, unk_token=self.unk_token)
+        self.max_intermediate_subword_positions_per_word = max_intermediate_subword_positions_per_word
+        self.subword_embedding_order = subword_embedding_order
+        self.intermediate_subword_distribution_strategy = intermediate_subword_distribution_strategy
 
     @property
     def do_lower_case(self):
@@ -195,7 +207,7 @@ class Bert2dTokenizer(PreTrainedTokenizer):
         return out_string
 
     def build_inputs_with_special_tokens(
-        self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None
+            self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None
     ) -> List[int]:
         """
         Build model inputs from a sequence or a pair of sequence for sequence classification tasks by concatenating and
@@ -220,7 +232,8 @@ class Bert2dTokenizer(PreTrainedTokenizer):
         return cls + token_ids_0 + sep + token_ids_1 + sep
 
     def get_special_tokens_mask(
-        self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None, already_has_special_tokens: bool = False
+            self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None,
+            already_has_special_tokens: bool = False
     ) -> List[int]:
         """
         Retrieve sequence ids from a token list that has no special tokens added. This method is called when adding
@@ -248,7 +261,7 @@ class Bert2dTokenizer(PreTrainedTokenizer):
         return [1] + ([0] * len(token_ids_0)) + [1]
 
     def create_token_type_ids_from_sequences(
-        self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None
+            self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None
     ) -> List[int]:
         """
         Create a mask from the two sequences passed to be used in a sequence-pair classification task. A BERT sequence
@@ -275,6 +288,131 @@ class Bert2dTokenizer(PreTrainedTokenizer):
         if token_ids_1 is None:
             return len(cls + token_ids_0 + sep) * [0]
         return len(cls + token_ids_0 + sep) * [0] + len(token_ids_1 + sep) * [1]
+
+    def create_word_ids_from_sequence(self, token_ids: List[int]) -> List[int]:
+        """Creates word ids for given tokens"""
+
+        tokens = self.convert_ids_to_tokens(token_ids)
+        word_ids: List[int] = []
+        current_word_id: int = -1
+        sentence_restart = False
+        restart_new_sentence = self.restart_new_sentence
+        if tokens.count(self.sep_token) < 2:
+            restart_new_sentence = False
+        for token in tokens:
+            # If new sentence requires new starting, do not restart at second
+            if restart_new_sentence and not sentence_restart and token == self.sep_token:
+                current_word_id = 0
+                sentence_restart = True
+            elif not is_subword(token):
+                current_word_id += 1
+            # If tokens start with a subword
+            elif current_word_id == -1:
+                current_word_id = 0
+            word_ids.append(current_word_id)
+
+        return word_ids
+
+    def create_subword_ids_from_sequence(self, token_ids: List[int]) -> List[int]:
+        """Creates subword ids for the given tokens and parameters"""
+
+        # If tokens are empty return empty subword id list
+        if len(token_ids) == 0:
+            return []
+
+        def _col_round(x: float) -> int:
+            """Colloquial rounding where 0.5 rounds to 1"""
+            frac = x - math.floor(x)
+            if frac < 0.5:
+                return math.floor(x)
+            return math.ceil(x)
+
+        def _get_uniform_id(si: int, max_intermediate_subwords: int, num_intermediate_subwords: int) -> int:
+            """Calculates uniform id for the given subword index, si, and max and number of intermediate subwords"""
+            return _col_round(si * (max_intermediate_subwords - 1) / num_intermediate_subwords)
+
+        def _get_ids_from_subwords(_num_subwords: int, _max_intermediate_subword_positions_per_word: int,
+                                   _subword_embedding_order: str, _intermediate_subword_distribution_strategy: str,
+                                   _starts_with_subword=False) -> List[int]:
+            """Calculate subword ids for given subwords list of a single word"""
+
+            if _starts_with_subword:
+                if _num_subwords == 1:
+                    return [1]
+            elif _num_subwords <= 2:
+                return list(range(_num_subwords))
+
+            if _subword_embedding_order == "ending_first":
+                # Return with simple cases
+                if _starts_with_subword and _num_subwords == 2:
+                    return [2, 1]
+
+                _subword_ids: List[int] = [0] if not _starts_with_subword else [1]
+                # 2 for root and last token
+                num_intermediate_subwords: int = _num_subwords - 2 if not _starts_with_subword else _num_subwords - 1
+
+                # R - L - I1 - I2 - ...
+                if num_intermediate_subwords <= _max_intermediate_subword_positions_per_word:
+                    for si in range(num_intermediate_subwords):
+                        _subword_ids.append(2 + si)
+                # if there are more intermediate subwords than allowed
+                else:
+                    if _intermediate_subword_distribution_strategy == "uniform":
+                        # Distribute all indices uniformly between allowed indices
+                        for si in range(num_intermediate_subwords):
+                            _subword_ids.append(
+                                2 + _get_uniform_id(si, _max_intermediate_subword_positions_per_word,
+                                                    num_intermediate_subwords))
+                    elif _intermediate_subword_distribution_strategy == "leftover_as_last":
+                        # Append subword indices that are allowed
+                        for si in range(_max_intermediate_subword_positions_per_word):
+                            _subword_ids.append(2 + si)
+                        # Append rest as last
+                        for si in range(num_intermediate_subwords - _max_intermediate_subword_positions_per_word):
+                            _subword_ids.append(1)
+                    else:
+                        raise ValueError("Unsupported intermediate subword distribution strategy")
+                _subword_ids.append(1)
+                return _subword_ids
+            raise ValueError("Unsupported subword embedding order")
+
+        def _extend_subword_ids_for_word(_subword_ids: List[int],
+                                         intermediate_subword_distribution_strategy: str,
+                                         max_intermediate_subword_positions_per_word: int,
+                                         _num_subwords: int,
+                                         _start_subword_processed: bool,
+                                         _starts_with_subword: bool, subword_embedding_order: str) -> None:
+            """Extends subword ids for each word"""
+            _subword_ids.extend(
+                _get_ids_from_subwords(_num_subwords, max_intermediate_subword_positions_per_word,
+                                       subword_embedding_order,
+                                       intermediate_subword_distribution_strategy,
+                                       _starts_with_subword and not _start_subword_processed)
+            )
+
+        tokens = self.convert_ids_to_tokens(token_ids)
+        subword_ids: List[int] = []
+        num_subwords: int = 0
+        starts_with_subword = is_subword(tokens[0])
+        start_subword_processed = False
+        for token in tokens:
+            if not is_subword(token):
+                if num_subwords > 0:
+                    _extend_subword_ids_for_word(
+                        subword_ids, self.intermediate_subword_distribution_strategy,
+                        self.max_intermediate_subword_positions_per_word, num_subwords,
+                        start_subword_processed,
+                        starts_with_subword, self.subword_embedding_order)
+                    start_subword_processed = True
+                    num_subwords = 0
+            num_subwords += 1
+        if num_subwords > 0:
+            _extend_subword_ids_for_word(
+                subword_ids, self.intermediate_subword_distribution_strategy,
+                self.max_intermediate_subword_positions_per_word,
+                num_subwords, start_subword_processed, starts_with_subword,
+                self.subword_embedding_order)
+        return subword_ids
 
     def save_vocabulary(self, save_directory: str, filename_prefix: Optional[str] = None) -> Tuple[str]:
         index = 0
@@ -419,14 +557,14 @@ class BasicTokenizer(object):
         # space-separated words, so they are not treated specially and handled
         # like the all of the other languages.
         if (
-            (cp >= 0x4E00 and cp <= 0x9FFF)
-            or (cp >= 0x3400 and cp <= 0x4DBF)  #
-            or (cp >= 0x20000 and cp <= 0x2A6DF)  #
-            or (cp >= 0x2A700 and cp <= 0x2B73F)  #
-            or (cp >= 0x2B740 and cp <= 0x2B81F)  #
-            or (cp >= 0x2B820 and cp <= 0x2CEAF)  #
-            or (cp >= 0xF900 and cp <= 0xFAFF)
-            or (cp >= 0x2F800 and cp <= 0x2FA1F)  #
+                (cp >= 0x4E00 and cp <= 0x9FFF)
+                or (cp >= 0x3400 and cp <= 0x4DBF)  #
+                or (cp >= 0x20000 and cp <= 0x2A6DF)  #
+                or (cp >= 0x2A700 and cp <= 0x2B73F)  #
+                or (cp >= 0x2B740 and cp <= 0x2B81F)  #
+                or (cp >= 0x2B820 and cp <= 0x2CEAF)  #
+                or (cp >= 0xF900 and cp <= 0xFAFF)
+                or (cp >= 0x2F800 and cp <= 0x2FA1F)  #
         ):  #
             return True
 

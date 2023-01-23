@@ -30,7 +30,7 @@ VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}
 
 PRETRAINED_VOCAB_FILES_MAP = {
     "vocab_file": {
-        "bert2d-base-uncased": "https://huggingface.co/bert-base-uncased/resolve/main/vocab.txt",
+        "bert2d-base-uncased": "https://huggingface.co/bert2d-base-uncased/resolve/main/vocab.txt",
     }
 }
 
@@ -128,6 +128,7 @@ class Bert2dTokenizer(PreTrainedTokenizer):
             mask_token="[MASK]",
             tokenize_chinese_chars=True,
             strip_accents=None,
+            do_split_on_punc=True,
             max_intermediate_subword_positions_per_word=1,
             subword_embedding_order="ending_first",
             intermediate_subword_distribution_strategy="uniform",
@@ -162,11 +163,13 @@ class Bert2dTokenizer(PreTrainedTokenizer):
                 never_split=never_split,
                 tokenize_chinese_chars=tokenize_chinese_chars,
                 strip_accents=strip_accents,
+                do_split_on_punc=do_split_on_punc
             )
         self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self.vocab, unk_token=self.unk_token)
         self.max_intermediate_subword_positions_per_word = max_intermediate_subword_positions_per_word
         self.subword_embedding_order = subword_embedding_order
         self.intermediate_subword_distribution_strategy = intermediate_subword_distribution_strategy
+        self.restart_new_sentence = restart_new_sentence
 
     @property
     def do_lower_case(self):
@@ -434,6 +437,18 @@ class Bert2dTokenizer(PreTrainedTokenizer):
                 index += 1
         return (vocab_file,)
 
+    """
+    def __call__(self, *args, **kwargs):
+        embeddings = super().__call__(*args, **kwargs)
+        embeddings["word_position_ids"] = [
+            self.create_word_ids_from_sequence(input_ids) for input_ids in
+            embeddings["input_ids"]]
+        embeddings["subword_ids"] = [
+            self.create_subword_ids_from_sequence(input_ids) for input_ids in
+            embeddings["input_ids"]]
+        return embeddings
+    """
+
 
 class BasicTokenizer(object):
     """
@@ -455,13 +470,15 @@ class BasicTokenizer(object):
             value for `lowercase` (as in the original BERT).
     """
 
-    def __init__(self, do_lower_case=True, never_split=None, tokenize_chinese_chars=True, strip_accents=None):
+    def __init__(self, do_lower_case=True, never_split=None, tokenize_chinese_chars=True, strip_accents=None,
+                 do_split_on_punc=True):
         if never_split is None:
             never_split = []
         self.do_lower_case = do_lower_case
         self.never_split = set(never_split)
         self.tokenize_chinese_chars = tokenize_chinese_chars
         self.strip_accents = strip_accents
+        self.do_split_on_punc = do_split_on_punc
 
     def tokenize(self, text, never_split=None):
         """
@@ -495,7 +512,10 @@ class BasicTokenizer(object):
                         token = self._run_strip_accents(token)
                 elif self.strip_accents:
                     token = self._run_strip_accents(token)
-            split_tokens.extend(self._run_split_on_punc(token, never_split))
+            if self.do_split_on_punc:
+                split_tokens.extend(self._run_split_on_punc(token, never_split))
+            else:
+                split_tokens.append(token)
 
         output_tokens = whitespace_tokenize(" ".join(split_tokens))
         return output_tokens

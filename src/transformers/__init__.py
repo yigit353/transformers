@@ -632,7 +632,6 @@ except OptionalDependencyNotAvailable:
     ]
 else:
     # Fast tokenizers structure
-    _import_structure["models.bert_2d"].append("Bert2dTokenizerFast")
     _import_structure["models.albert"].append("AlbertTokenizerFast")
     _import_structure["models.bart"].append("BartTokenizerFast")
     _import_structure["models.barthez"].append("BarthezTokenizerFast")
@@ -921,15 +920,17 @@ else:
         [
             "BERT_2D_PRETRAINED_MODEL_ARCHIVE_LIST",
             "Bert2dForMaskedLM",
-            "Bert2dForCausalLM",
             "Bert2dForMultipleChoice",
+            "Bert2dForNextSentencePrediction",
+            "Bert2dForPreTraining",
             "Bert2dForQuestionAnswering",
             "Bert2dForSequenceClassification",
             "Bert2dForTokenClassification",
             "Bert2dLayer",
+            "Bert2dLMHeadModel",
             "Bert2dModel",
             "Bert2dPreTrainedModel",
-            "load_tf_weights_in_bert_2d",
+            "load_tf_weights_in_bert",
         ]
     )
     _import_structure["models.albert"].extend(
@@ -2560,20 +2561,7 @@ else:
     ]
     # TensorFlow models structure
 
-    _import_structure["models.bert_2d"].extend(
-        [
-            "TF_BERT_2D_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "TFBert2dForMaskedLM",
-            "TFBert2dForCausalLM",
-            "TFBert2dForMultipleChoice",
-            "TFBert2dForQuestionAnswering",
-            "TFBert2dForSequenceClassification",
-            "TFBert2dForTokenClassification",
-            "TFBert2dLayer",
-            "TFBert2dModel",
-            "TFBert2dPreTrainedModel",
-        ]
-    )
+    
     _import_structure["models.albert"].extend(
         [
             "TF_ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -4000,7 +3988,6 @@ if TYPE_CHECKING:
         from .utils.dummy_tokenizers_objects import *
     else:
         # Fast tokenizers imports
-        from .models.bert_2d import Bert2dTokenizerFast
         from .models.albert import AlbertTokenizerFast
         from .models.bart import BartTokenizerFast
         from .models.barthez import BarthezTokenizerFast
@@ -4232,15 +4219,17 @@ if TYPE_CHECKING:
         from .models.bert_2d import (
             BERT_2D_PRETRAINED_MODEL_ARCHIVE_LIST,
             Bert2dForMaskedLM,
-            Bert2dForCausalLM,
             Bert2dForMultipleChoice,
+            Bert2dForNextSentencePrediction,
+            Bert2dForPreTraining,
             Bert2dForQuestionAnswering,
             Bert2dForSequenceClassification,
             Bert2dForTokenClassification,
             Bert2dLayer,
+            Bert2dLMHeadModel,
             Bert2dModel,
             Bert2dPreTrainedModel,
-            load_tf_weights_in_bert_2d,
+            load_tf_weights_in_bert
         )
         from .models.albert import (
             ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,

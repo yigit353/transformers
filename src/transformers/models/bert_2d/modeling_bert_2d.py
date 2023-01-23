@@ -50,25 +50,6 @@ _CHECKPOINT_FOR_DOC = "bert2d-base-uncased"
 _CONFIG_FOR_DOC = "Bert2dConfig"
 _TOKENIZER_FOR_DOC = "Bert2dTokenizer"
 
-# TokenClassification docstring
-_CHECKPOINT_FOR_TOKEN_CLASSIFICATION = "dbmdz/bert-large-cased-finetuned-conll03-english"
-_TOKEN_CLASS_EXPECTED_OUTPUT = (
-    "['O', 'I-ORG', 'I-ORG', 'I-ORG', 'O', 'O', 'O', 'O', 'O', 'I-LOC', 'O', 'I-LOC', 'I-LOC'] "
-)
-_TOKEN_CLASS_EXPECTED_LOSS = 0.01
-
-# QuestionAnswering docstring
-_CHECKPOINT_FOR_QA = "deepset/bert-base-cased-squad2"
-_QA_EXPECTED_OUTPUT = "'a nice puppet'"
-_QA_EXPECTED_LOSS = 7.41
-_QA_TARGET_START_INDEX = 14
-_QA_TARGET_END_INDEX = 15
-
-# SequenceClassification docstring
-_CHECKPOINT_FOR_SEQUENCE_CLASSIFICATION = "textattack/bert-base-uncased-yelp-polarity"
-_SEQ_CLASS_EXPECTED_OUTPUT = "'LABEL_1'"
-_SEQ_CLASS_EXPECTED_LOSS = 0.01
-
 BERT_2D_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "bert2d-base-uncased",
     # See all BERT models at https://huggingface.co/models?filter=bert2d
@@ -192,9 +173,9 @@ class Bert2dEmbeddings(nn.Module):
         if word_position_ids is None:
             word_position_ids = self.position_ids[:, past_key_values_length: seq_length + past_key_values_length]
 
-        # Setting the token_type_ids to the registered buffer in constructor where it is all zeros, which usually occurs
-        # when its auto-generated, registered buffer helps users when tracing the model without passing token_type_ids, solves
-        # issue #5664
+        # Setting the token_type_ids to the registered buffer in constructor where it is all zeros, which usually
+        # occurs when its auto-generated, registered buffer helps users when tracing the model without passing
+        # token_type_ids, solves issue #5664
         if token_type_ids is None:
             if hasattr(self, "token_type_ids"):
                 buffered_token_type_ids = self.token_type_ids[:, :seq_length]
@@ -956,7 +937,7 @@ class Bert2dModel(Bert2dPreTrainedModel):
         past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
 
         if attention_mask is None:
-            attention_mask = torch.ones(((batch_size, seq_length + past_key_values_length)), device=device)
+            attention_mask = torch.ones((batch_size, seq_length + past_key_values_length), device=device)
 
         if token_type_ids is None:
             if hasattr(self.embeddings, "token_type_ids"):
@@ -965,6 +946,12 @@ class Bert2dModel(Bert2dPreTrainedModel):
                 token_type_ids = buffered_token_type_ids_expanded
             else:
                 token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
+
+        if word_position_ids is None:
+            word_position_ids = self.embeddings.word_position_ids[:, :seq_length].expand(batch_size, seq_length)
+
+        if subword_ids is None:
+            subword_ids = self.embeddings.subword_ids[:, :seq_length].expand(batch_size, seq_length)
 
         # We can provide a self-attention mask of dimensions [batch_size, from_seq_length, to_seq_length]
         # ourselves in which case we just need to make it broadcastable to all heads.
@@ -991,6 +978,7 @@ class Bert2dModel(Bert2dPreTrainedModel):
         embedding_output = self.embeddings(
             input_ids=input_ids,
             word_position_ids=word_position_ids,
+            subword_ids=subword_ids,
             token_type_ids=token_type_ids,
             inputs_embeds=inputs_embeds,
             past_key_values_length=past_key_values_length,
@@ -1055,7 +1043,8 @@ class Bert2dForPreTraining(Bert2dPreTrainedModel):
             input_ids: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             token_type_ids: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.Tensor] = None,
+            word_position_ids: Optional[torch.Tensor] = None,
+            subword_ids: Optional[torch.Tensor] = None,
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
             labels: Optional[torch.Tensor] = None,
@@ -1102,7 +1091,8 @@ class Bert2dForPreTraining(Bert2dPreTrainedModel):
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
-            position_ids=position_ids,
+            word_position_ids=word_position_ids,
+            subword_ids=subword_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
             output_attentions=output_attentions,
@@ -1138,7 +1128,8 @@ class Bert2dForPreTraining(Bert2dPreTrainedModel):
 )
 class Bert2dLMHeadModel(Bert2dPreTrainedModel):
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
-    _keys_to_ignore_on_load_missing = [r"position_ids", r"predictions.decoder.bias", r"cls.predictions.decoder.weight"]
+    _keys_to_ignore_on_load_missing = [r"word_position_ids", r"subword_ids", r"predictions.decoder.bias",
+                                       r"cls.predictions.decoder.weight"]
 
     def __init__(self, config):
         super().__init__(config)
@@ -1170,7 +1161,8 @@ class Bert2dLMHeadModel(Bert2dPreTrainedModel):
             input_ids: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             token_type_ids: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.Tensor] = None,
+            word_position_ids: Optional[torch.Tensor] = None,
+            subword_ids: Optional[torch.Tensor] = None,
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
             encoder_hidden_states: Optional[torch.Tensor] = None,
@@ -1214,7 +1206,8 @@ class Bert2dLMHeadModel(Bert2dPreTrainedModel):
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
-            position_ids=position_ids,
+            word_position_ids=word_position_ids,
+            subword_ids=subword_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
             encoder_hidden_states=encoder_hidden_states,
@@ -1316,7 +1309,8 @@ class Bert2dForMaskedLM(Bert2dPreTrainedModel):
             input_ids: Optional[torch.Tensor] = None,
             attention_mask: Optional[torch.Tensor] = None,
             token_type_ids: Optional[torch.Tensor] = None,
-            position_ids: Optional[torch.Tensor] = None,
+            word_position_ids: Optional[torch.Tensor] = None,
+            subword_ids: Optional[torch.Tensor] = None,
             head_mask: Optional[torch.Tensor] = None,
             inputs_embeds: Optional[torch.Tensor] = None,
             encoder_hidden_states: Optional[torch.Tensor] = None,
@@ -1339,7 +1333,8 @@ class Bert2dForMaskedLM(Bert2dPreTrainedModel):
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
-            position_ids=position_ids,
+            word_position_ids=word_position_ids,
+            subword_ids=subword_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
             encoder_hidden_states=encoder_hidden_states,
@@ -1515,11 +1510,8 @@ class Bert2dForSequenceClassification(Bert2dPreTrainedModel):
     @add_start_docstrings_to_model_forward(BERT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
         processor_class=_TOKENIZER_FOR_DOC,
-        checkpoint=_CHECKPOINT_FOR_SEQUENCE_CLASSIFICATION,
         output_type=SequenceClassifierOutput,
         config_class=_CONFIG_FOR_DOC,
-        expected_output=_SEQ_CLASS_EXPECTED_OUTPUT,
-        expected_loss=_SEQ_CLASS_EXPECTED_LOSS,
     )
     def forward(
             self,
@@ -1649,7 +1641,8 @@ class Bert2dForMultipleChoice(Bert2dPreTrainedModel):
         input_ids = input_ids.view(-1, input_ids.size(-1)) if input_ids is not None else None
         attention_mask = attention_mask.view(-1, attention_mask.size(-1)) if attention_mask is not None else None
         token_type_ids = token_type_ids.view(-1, token_type_ids.size(-1)) if token_type_ids is not None else None
-        word_position_ids = word_position_ids.view(-1, word_position_ids.size(-1)) if word_position_ids is not None else None
+        word_position_ids = word_position_ids.view(-1, word_position_ids.size(
+            -1)) if word_position_ids is not None else None
         subword_ids = subword_ids.view(-1, subword_ids.size(-1)) if subword_ids is not None else None
         inputs_embeds = (
             inputs_embeds.view(-1, inputs_embeds.size(-2), inputs_embeds.size(-1))
@@ -1720,11 +1713,8 @@ class Bert2dForTokenClassification(Bert2dPreTrainedModel):
     @add_start_docstrings_to_model_forward(BERT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
         processor_class=_TOKENIZER_FOR_DOC,
-        checkpoint=_CHECKPOINT_FOR_TOKEN_CLASSIFICATION,
         output_type=TokenClassifierOutput,
         config_class=_CONFIG_FOR_DOC,
-        expected_output=_TOKEN_CLASS_EXPECTED_OUTPUT,
-        expected_loss=_TOKEN_CLASS_EXPECTED_LOSS,
     )
     def forward(
             self,
@@ -1804,13 +1794,8 @@ class Bert2dForQuestionAnswering(Bert2dPreTrainedModel):
     @add_start_docstrings_to_model_forward(BERT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
         processor_class=_TOKENIZER_FOR_DOC,
-        checkpoint=_CHECKPOINT_FOR_QA,
         output_type=QuestionAnsweringModelOutput,
         config_class=_CONFIG_FOR_DOC,
-        qa_target_start_index=_QA_TARGET_START_INDEX,
-        qa_target_end_index=_QA_TARGET_END_INDEX,
-        expected_output=_QA_EXPECTED_OUTPUT,
-        expected_loss=_QA_EXPECTED_LOSS,
     )
     def forward(
             self,

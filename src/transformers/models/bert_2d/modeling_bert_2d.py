@@ -147,7 +147,7 @@ class Bert2dEmbeddings(nn.Module):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
         # self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
-        self.register_buffer("word_position_ids", torch.zeros(config.max_position_embeddings).expand((1, -1)))
+        self.register_buffer("word_position_ids", torch.zeros(config.max_word_position_embeddings).expand((1, -1)))
         self.register_buffer(
             "subword_ids", torch.zeros(self.word_position_ids.size(), dtype=torch.long), persistent=False)
         self.register_buffer(

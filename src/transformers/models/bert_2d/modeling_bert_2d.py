@@ -135,7 +135,7 @@ class Bert2dEmbeddings(nn.Module):
     def __init__(self, config: Bert2dConfig):
         super().__init__()
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
-        self.whole_word_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+        self.whole_word_embeddings = nn.Embedding(config.max_word_position_embeddings, config.hidden_size)
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
 
         subword_position_embeddings = config.subword_intermediate_position_embeddings + 2

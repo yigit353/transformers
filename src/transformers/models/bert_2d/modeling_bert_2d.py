@@ -698,7 +698,7 @@ class Bert2dPreTrainedModel(PreTrainedModel):
 
     config_class = Bert2dConfig
     load_tf_weights = load_tf_weights_in_bert
-    base_model_prefix = "bert_2d"
+    base_model_prefix = "bert2d"
     supports_gradient_checkpointing = True
     _keys_to_ignore_on_load_missing = [r"position_ids"]
 

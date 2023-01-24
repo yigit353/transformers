@@ -26,6 +26,7 @@ import math
 import re
 import string
 
+from ... import Bert2dTokenizer
 from ...models.bert_2d import BasicTokenizer
 from ...utils import logging
 
@@ -385,7 +386,6 @@ def compute_predictions_logits(
         all_results,
         n_best_size,
         max_answer_length,
-        do_lower_case,
         do_split_on_punc,
         output_prediction_file,
         output_nbest_file,
@@ -510,7 +510,8 @@ def compute_predictions_logits(
                 tok_text = " ".join(tok_text.split())
                 orig_text = " ".join(orig_tokens)
 
-                final_text = get_final_text(tok_text, orig_text, do_lower_case, do_split_on_punc, verbose_logging)
+                final_text = get_final_text(tok_text, orig_text, tokenizer.do_lower_case, do_split_on_punc,
+                                            verbose_logging)
                 if final_text in seen_predictions:
                     continue
 
@@ -593,13 +594,14 @@ def compute_predictions_log_probs(
         all_results,
         n_best_size,
         max_answer_length,
+        do_split_on_punc,
         output_prediction_file,
         output_nbest_file,
         output_null_log_odds_file,
         start_n_top,
         end_n_top,
         version_2_with_negative,
-        tokenizer,
+        tokenizer: Bert2dTokenizer,
         verbose_logging,
 ):
     """
@@ -714,12 +716,8 @@ def compute_predictions_log_probs(
             tok_text = " ".join(tok_text.split())
             orig_text = " ".join(orig_tokens)
 
-            if hasattr(tokenizer, "do_lower_case"):
-                do_lower_case = tokenizer.do_lower_case
-            else:
-                do_lower_case = tokenizer.do_lowercase_and_remove_accent
-
-            final_text = get_final_text(tok_text, orig_text, do_lower_case, verbose_logging)
+            final_text = get_final_text(tok_text, orig_text, tokenizer.do_lower_case, do_split_on_punc,
+                                        verbose_logging)
 
             if final_text in seen_predictions:
                 continue

@@ -31,14 +31,14 @@ from tqdm import tqdm, trange
 import transformers
 from transformers import (AdamW, Bert2dConfig, Bert2dForQuestionAnswering,
                           Bert2dTokenizer, get_linear_schedule_with_warmup,
-                          MODEL_FOR_QUESTION_ANSWERING_MAPPING,
-                          squad_convert_examples_to_features, WEIGHTS_NAME)
+                          MODEL_FOR_QUESTION_ANSWERING_MAPPING, WEIGHTS_NAME)
 from transformers.data.metrics.squad_metrics import (
     compute_predictions_log_probs,
     compute_predictions_logits,
     squad_evaluate,
 )
-from transformers.data.processors.squad_bert_2d import SquadResult, SquadV1Processor, SquadV2Processor
+from transformers.data.processors.squad_bert_2d import squad_convert_examples_to_features, SquadResult, \
+    SquadV1Processor, SquadV2Processor
 from transformers.trainer_utils import is_main_process
 
 try:

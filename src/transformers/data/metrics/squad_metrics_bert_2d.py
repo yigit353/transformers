@@ -386,6 +386,7 @@ def compute_predictions_logits(
         all_results,
         n_best_size,
         max_answer_length,
+        do_lower_case,
         do_split_on_punc,
         output_prediction_file,
         output_nbest_file,
@@ -510,8 +511,7 @@ def compute_predictions_logits(
                 tok_text = " ".join(tok_text.split())
                 orig_text = " ".join(orig_tokens)
 
-                final_text = get_final_text(tok_text, orig_text, tokenizer.do_lower_case, do_split_on_punc,
-                                            verbose_logging)
+                final_text = get_final_text(tok_text, orig_text, do_lower_case, do_split_on_punc, verbose_logging)
                 if final_text in seen_predictions:
                     continue
 
@@ -594,6 +594,7 @@ def compute_predictions_log_probs(
         all_results,
         n_best_size,
         max_answer_length,
+        do_lower_case,
         do_split_on_punc,
         output_prediction_file,
         output_nbest_file,
@@ -716,8 +717,7 @@ def compute_predictions_log_probs(
             tok_text = " ".join(tok_text.split())
             orig_text = " ".join(orig_tokens)
 
-            final_text = get_final_text(tok_text, orig_text, tokenizer.do_lower_case, do_split_on_punc,
-                                        verbose_logging)
+            final_text = get_final_text(tok_text, orig_text, do_lower_case, do_split_on_punc, verbose_logging)
 
             if final_text in seen_predictions:
                 continue

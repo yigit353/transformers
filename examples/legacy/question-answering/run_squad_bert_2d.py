@@ -15,7 +15,6 @@
 # limitations under the License.
 """ Finetuning the library models for question-answering on SQuAD (DistilBERT, Bert, XLM, XLNet)."""
 
-
 import argparse
 import glob
 import logging
@@ -30,30 +29,22 @@ from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm, trange
 
 import transformers
-from transformers import (
-    MODEL_FOR_QUESTION_ANSWERING_MAPPING,
-    WEIGHTS_NAME,
-    AdamW,
-    AutoConfig,
-    AutoModelForQuestionAnswering,
-    AutoTokenizer,
-    get_linear_schedule_with_warmup,
-    squad_convert_examples_to_features,
-)
+from transformers import (AdamW, Bert2dConfig, Bert2dForQuestionAnswering,
+                          Bert2dTokenizer, get_linear_schedule_with_warmup,
+                          MODEL_FOR_QUESTION_ANSWERING_MAPPING,
+                          squad_convert_examples_to_features, WEIGHTS_NAME)
 from transformers.data.metrics.squad_metrics import (
     compute_predictions_log_probs,
     compute_predictions_logits,
     squad_evaluate,
 )
-from transformers.data.processors.squad import SquadResult, SquadV1Processor, SquadV2Processor
+from transformers.data.processors.squad_bert_2d import SquadResult, SquadV1Processor, SquadV2Processor
 from transformers.trainer_utils import is_main_process
-
 
 try:
     from torch.utils.tensorboard import SummaryWriter
 except ImportError:
     from tensorboardX import SummaryWriter
-
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +95,7 @@ def train(args, train_dataset, model, tokenizer):
 
     # Check if saved optimizer or scheduler states exist
     if os.path.isfile(os.path.join(args.model_name_or_path, "optimizer.pt")) and os.path.isfile(
-        os.path.join(args.model_name_or_path, "scheduler.pt")
+            os.path.join(args.model_name_or_path, "scheduler.pt")
     ):
         # Load in optimizer and scheduler states
         optimizer.load_state_dict(torch.load(os.path.join(args.model_name_or_path, "optimizer.pt")))
@@ -185,8 +176,10 @@ def train(args, train_dataset, model, tokenizer):
                 "input_ids": batch[0],
                 "attention_mask": batch[1],
                 "token_type_ids": batch[2],
-                "start_positions": batch[3],
-                "end_positions": batch[4],
+                "word_position_ids": batch[3],
+                "subword_ids": batch[4],
+                "start_positions": batch[5],
+                "end_positions": batch[6],
             }
 
             if args.model_type in ["xlm", "roberta", "distilbert", "camembert", "bart", "longformer"]:
@@ -254,10 +247,10 @@ def train(args, train_dataset, model, tokenizer):
                     torch.save(scheduler.state_dict(), os.path.join(output_dir, "scheduler.pt"))
                     logger.info("Saving optimizer and scheduler states to %s", output_dir)
 
-            if args.max_steps > 0 and global_step > args.max_steps:
+            if 0 < args.max_steps < global_step:
                 epoch_iterator.close()
                 break
-        if args.max_steps > 0 and global_step > args.max_steps:
+        if 0 < args.max_steps < global_step:
             train_iterator.close()
             break
 
@@ -300,6 +293,8 @@ def evaluate(args, model, tokenizer, prefix=""):
                 "input_ids": batch[0],
                 "attention_mask": batch[1],
                 "token_type_ids": batch[2],
+                "word_position_ids": batch[3],
+                "subword_ids": batch[4],
             }
 
             if args.model_type in ["xlm", "roberta", "distilbert", "camembert", "bart", "longformer"]:
@@ -403,7 +398,8 @@ def evaluate(args, model, tokenizer, prefix=""):
 
 def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=False):
     if args.local_rank not in [-1, 0] and not evaluate:
-        # Make sure only the first process in distributed training process the dataset, and the others will use the cache
+        # Make sure only the first process in distributed training process the dataset, and the others will use the
+        # cache
         torch.distributed.barrier()
 
     # Load data features from cache or dataset file
@@ -463,7 +459,8 @@ def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=Fal
             torch.save({"features": features, "dataset": dataset, "examples": examples}, cached_features_file)
 
     if args.local_rank == 0 and not evaluate:
-        # Make sure only the first process in distributed training process the dataset, and the others will use the cache
+        # Make sure only the first process in distributed training process the dataset, and the others will use the
+        # cache
         torch.distributed.barrier()
 
     if output_examples:
@@ -503,21 +500,21 @@ def main():
         default=None,
         type=str,
         help="The input data dir. Should contain the .json files for the task."
-        + "If no data dir or train/predict files are specified, will run with tensorflow_datasets.",
+             + "If no data dir or train/predict files are specified, will run with tensorflow_datasets.",
     )
     parser.add_argument(
         "--train_file",
         default=None,
         type=str,
         help="The input training file. If a data dir is specified, will look for the file there"
-        + "If no data dir or train/predict files are specified, will run with tensorflow_datasets.",
+             + "If no data dir or train/predict files are specified, will run with tensorflow_datasets.",
     )
     parser.add_argument(
         "--predict_file",
         default=None,
         type=str,
         help="The input evaluation file. If a data dir is specified, will look for the file there"
-        + "If no data dir or train/predict files are specified, will run with tensorflow_datasets.",
+             + "If no data dir or train/predict files are specified, will run with tensorflow_datasets.",
     )
     parser.add_argument(
         "--config_name", default="", type=str, help="Pretrained config name or path if not the same as model_name"
@@ -672,6 +669,15 @@ def main():
     parser.add_argument("--server_port", type=str, default="", help="Can be used for distant debugging.")
 
     parser.add_argument("--threads", type=int, default=1, help="multiple threads for converting example to features")
+    parser.add_argument("--do_not_split_on_punc", action="store_true", help="Whether to split on punctuation.")
+    parser.add_argument("--max_intermediate_subword_positions_per_word", type=int, default=1,
+                        help="max intermediate subword positions per word")
+    parser.add_argument("--subword_embedding_order", type=str, default="ending_first",
+                        help="subword embedding order")
+    parser.add_argument("--intermediate_subword_distribution_strategy", type=str, default="uniform",
+                        help="intermediate subword distribution strategy")
+    parser.add_argument("--restart_new_sentence", action="store_true", help="Whether to restart new sentence.")
+
     args = parser.parse_args()
 
     if args.doc_stride >= args.max_seq_length - args.max_query_length:
@@ -682,10 +688,10 @@ def main():
         )
 
     if (
-        os.path.exists(args.output_dir)
-        and os.listdir(args.output_dir)
-        and args.do_train
-        and not args.overwrite_output_dir
+            os.path.exists(args.output_dir)
+            and os.listdir(args.output_dir)
+            and args.do_train
+            and not args.overwrite_output_dir
     ):
         raise ValueError(
             "Output directory ({}) already exists and is not empty. Use --overwrite_output_dir to overcome.".format(
@@ -706,7 +712,7 @@ def main():
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
         args.n_gpu = 0 if args.no_cuda else torch.cuda.device_count()
-    else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
+    else:  # Initializes the distributed backend which will take care of synchronizing nodes/GPUs
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
         torch.distributed.init_process_group(backend="nccl")
@@ -741,17 +747,22 @@ def main():
         torch.distributed.barrier()
 
     args.model_type = args.model_type.lower()
-    config = AutoConfig.from_pretrained(
+    config = Bert2dConfig.from_pretrained(
         args.config_name if args.config_name else args.model_name_or_path,
         cache_dir=args.cache_dir if args.cache_dir else None,
     )
-    tokenizer = AutoTokenizer.from_pretrained(
+    tokenizer = Bert2dTokenizer.from_pretrained(
         args.tokenizer_name if args.tokenizer_name else args.model_name_or_path,
         do_lower_case=args.do_lower_case,
         cache_dir=args.cache_dir if args.cache_dir else None,
-        use_fast=False,  # SquadDataset is not compatible with Fast tokenizers which have a smarter overflow handeling
+        use_fast=False,  # SquadDataset is not compatible with Fast tokenizers which have a smarter overflow handling
+        do_split_on_punc=not args.do_not_split_on_punc,
+        max_intermediate_subword_positions_per_word=args.max_intermediate_subword_positions_per_word,
+        subword_embedding_order=args.subword_embedding_order,
+        intermediate_subword_distribution_strategy=args.intermediate_subword_distribution_strategy,
+        restart_new_sentence=args.restart_new_sentence,
     )
-    model = AutoModelForQuestionAnswering.from_pretrained(
+    model = Bert2dForQuestionAnswering.from_pretrained(
         args.model_name_or_path,
         from_tf=bool(".ckpt" in args.model_name_or_path),
         config=config,
@@ -766,9 +777,9 @@ def main():
 
     logger.info("Training/evaluation parameters %s", args)
 
-    # Before we do anything with models, we want to ensure that we get fp16 execution of torch.einsum if args.fp16 is set.
-    # Otherwise it'll default to "promote" mode, and we'll get fp32 operations. Note that running `--fp16_opt_level="O2"` will
-    # remove the need for this code, but it is still valid.
+    # Before we do anything with models, we want to ensure that we get fp16 execution of torch.einsum if args.fp16 is
+    # set. Otherwise, it'll default to "promote" mode, and we'll get fp32 operations. Note that running
+    # `--fp16_opt_level="O2"` will remove the need for this code, but it is still valid.
     if args.fp16:
         try:
             import apex
@@ -797,14 +808,14 @@ def main():
         torch.save(args, os.path.join(args.output_dir, "training_args.bin"))
 
         # Load a trained model and vocabulary that you have fine-tuned
-        model = AutoModelForQuestionAnswering.from_pretrained(args.output_dir)  # , force_download=True)
+        model = Bert2dForQuestionAnswering.from_pretrained(args.output_dir)  # , force_download=True)
 
-        # SquadDataset is not compatible with Fast tokenizers which have a smarter overflow handeling
+        # SquadDataset is not compatible with Fast tokenizers which have a smarter overflow handling
         # So we use use_fast=False here for now until Fast-tokenizer-compatible-examples are out
-        tokenizer = AutoTokenizer.from_pretrained(args.output_dir, do_lower_case=args.do_lower_case, use_fast=False)
+        tokenizer = Bert2dTokenizer.from_pretrained(args.output_dir, do_lower_case=args.do_lower_case, use_fast=False)
         model.to(args.device)
 
-    # Evaluation - we can ask to evaluate all the checkpoints (sub-directories) in a directory
+    # Evaluation - we can ask to evaluate all the checkpoints (subdirectories) in a directory
     results = {}
     if args.do_eval and args.local_rank in [-1, 0]:
         if args.do_train:
@@ -825,7 +836,7 @@ def main():
         for checkpoint in checkpoints:
             # Reload the model
             global_step = checkpoint.split("-")[-1] if len(checkpoints) > 1 else ""
-            model = AutoModelForQuestionAnswering.from_pretrained(checkpoint)  # , force_download=True)
+            model = Bert2dForQuestionAnswering.from_pretrained(checkpoint)  # , force_download=True)
             model.to(args.device)
 
             # Evaluate

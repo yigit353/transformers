@@ -461,7 +461,7 @@ def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=Fal
             threads=args.threads,
         )
 
-        if args.local_rank in [-1, 0]:
+        if args.local_rank in [-1, 0] and not args.debug:
             logger.info("Saving features into cached file %s", cached_features_file)
             torch.save({"features": features, "dataset": dataset, "examples": examples}, cached_features_file)
 
@@ -685,6 +685,9 @@ def main():
                         help="intermediate subword distribution strategy")
     parser.add_argument("--restart_new_sentence", action="store_true", help="Whether to restart new sentence.")
 
+    # DEBUG
+    parser.add_argument("--debug", action="store_true", help="Whether to run in debug mode.")
+
     args = parser.parse_args()
 
     if args.doc_stride >= args.max_seq_length - args.max_query_length:
@@ -747,6 +750,9 @@ def main():
         transformers.utils.logging.enable_explicit_format()
     # Set seed
     set_seed(args)
+
+    # DEBUG
+    input("Debug:")
 
     # Load pretrained model and tokenizer
     if args.local_rank not in [-1, 0]:

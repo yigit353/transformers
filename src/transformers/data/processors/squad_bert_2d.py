@@ -185,9 +185,8 @@ def squad_convert_example_to_features(
             stride=max_seq_length - doc_stride - len(truncated_query) - sequence_pair_added_tokens,
             return_token_type_ids=True,
         )
-        
-        encoded_dict["word_position_ids"] = tokenizer.get_word_position_ids(encoded_dict["input_ids"])
-        encoded_dict["subword_ids"] = tokenizer.get_subword_ids(encoded_dict["input_ids"])
+        encoded_dict["word_position_ids"] = tokenizer.create_word_ids_from_sequence(encoded_dict["input_ids"])
+        encoded_dict["subword_ids"] = tokenizer.create_subword_ids_from_sequence(encoded_dict["input_ids"])
 
         paragraph_len = min(
             len(all_doc_tokens) - len(spans) * doc_stride,

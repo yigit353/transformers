@@ -186,9 +186,9 @@ def train(args, train_dataset, model, tokenizer):
                 del inputs["token_type_ids"]
 
             if args.model_type in ["xlnet", "xlm"]:
-                inputs.update({"cls_index": batch[5], "p_mask": batch[6]})
+                inputs.update({"cls_index": batch[7], "p_mask": batch[8]})
                 if args.version_2_with_negative:
-                    inputs.update({"is_impossible": batch[7]})
+                    inputs.update({"is_impossible": batch[9]})
                 if hasattr(model, "config") and hasattr(model.config, "lang2id"):
                     inputs.update(
                         {"langs": (torch.ones(batch[0].shape, dtype=torch.int64) * args.lang_id).to(args.device)}
@@ -300,11 +300,11 @@ def evaluate(args, model, tokenizer, prefix=""):
             if args.model_type in ["xlm", "roberta", "distilbert", "camembert", "bart", "longformer"]:
                 del inputs["token_type_ids"]
 
-            feature_indices = batch[3]
+            feature_indices = batch[5]
 
             # XLNet and XLM use more arguments for their predictions
             if args.model_type in ["xlnet", "xlm"]:
-                inputs.update({"cls_index": batch[4], "p_mask": batch[5]})
+                inputs.update({"cls_index": batch[6], "p_mask": batch[7]})
                 # for lang_id-sensitive xlm models
                 if hasattr(model, "config") and hasattr(model.config, "lang2id"):
                     inputs.update(

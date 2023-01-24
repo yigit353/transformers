@@ -32,7 +32,7 @@ import transformers
 from transformers import (AdamW, Bert2dConfig, Bert2dForQuestionAnswering,
                           Bert2dTokenizer, get_linear_schedule_with_warmup,
                           MODEL_FOR_QUESTION_ANSWERING_MAPPING, WEIGHTS_NAME)
-from transformers.data.metrics.squad_metrics import (
+from transformers.data.metrics.squad_metrics_bert_2d import (
     compute_predictions_log_probs,
     compute_predictions_logits,
     squad_evaluate,

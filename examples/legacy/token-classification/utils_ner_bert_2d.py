@@ -272,7 +272,7 @@ if is_torch_available():
                     with Pool(threads) as p:
                         annotate_ = partial(
                             token_classification_task.convert_examples_to_features,
-                            labels=labels,
+                            label_list=labels,
                             max_seq_length=max_seq_length,
                             tokenizer=tokenizer,
                             cls_token_at_end=bool(model_type in ["xlnet"]),

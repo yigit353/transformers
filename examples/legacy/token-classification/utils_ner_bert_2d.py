@@ -277,13 +277,14 @@ if is_torch_available():
                             pad_token_segment_id=tokenizer.pad_token_type_id,
                             pad_token_label_id=self.pad_token_label_id
                         )
-                        self.features = list(
+                        features = list(
                             tqdm(
                                 p.imap(annotate_, examples, chunksize=32),
                                 total=len(examples),
                                 desc=f"convert {token_classification_task.__class__.__name__} examples to features"
                             )
                         )
+                    self.features = [feature[0] for feature in features]
                     logger.info(f"Saving features into cached file {cached_features_file}")
                     torch.save(self.features, cached_features_file)
 

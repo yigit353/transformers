@@ -26,7 +26,7 @@ from typing import List, Optional, TextIO, Union
 from filelock import FileLock
 from tqdm import tqdm
 
-from transformers import is_torch_available, PreTrainedTokenizer
+from transformers import Bert2dTokenizer, is_torch_available
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,11 @@ class Split(Enum):
     test = "test"
 
 
+def convert_example_to_features_init(tokenizer_for_convert: Bert2dTokenizer):
+    global tokenizer
+    tokenizer = tokenizer_for_convert
+
+
 class TokenClassificationTask:
 
     @staticmethod
@@ -88,7 +93,7 @@ class TokenClassificationTask:
             example: InputExample,
             label_list: List[str],
             max_seq_length: int,
-            tokenizer: PreTrainedTokenizer,
+            tokenizer: Bert2dTokenizer,
             cls_token_at_end=False,
             cls_token="[CLS]",
             cls_token_segment_id=1,
@@ -226,7 +231,7 @@ if is_torch_available():
                 self,
                 token_classification_task: TokenClassificationTask,
                 data_dir: str,
-                tokenizer: PreTrainedTokenizer,
+                tokenizer: Bert2dTokenizer,
                 labels: List[str],
                 model_type: str,
                 max_seq_length: Optional[int] = None,
@@ -253,7 +258,7 @@ if is_torch_available():
                     examples = token_classification_task.read_examples_from_file(data_dir, mode)
 
                     threads = min(threads, cpu_count())
-                    with Pool(threads) as p:
+                    with Pool(threads, initializer=convert_example_to_features_init, initargs=(tokenizer,)) as p:
                         annotate_ = partial(
                             token_classification_task.convert_example_to_feature,
                             label_list=labels,

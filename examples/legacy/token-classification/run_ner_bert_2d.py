@@ -127,7 +127,7 @@ def main():
             " --overwrite_output_dir to overcome."
         )
 
-    module = import_module("tasks")
+    module = import_module("tasks_bert_2d")
     try:
         token_classification_task_clazz = getattr(module, model_args.task_type)
         token_classification_task: TokenClassificationTask = token_classification_task_clazz()

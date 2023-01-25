@@ -19,11 +19,14 @@ import logging
 import os
 from dataclasses import dataclass
 from enum import Enum
+from functools import partial
+from multiprocessing import cpu_count, Pool
 from typing import List, Optional, TextIO, Union
 
 from filelock import FileLock
+from tqdm import tqdm
 
-from transformers import is_tf_available, is_torch_available, PreTrainedTokenizer
+from transformers import is_torch_available, PreTrainedTokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -245,6 +248,7 @@ if is_torch_available():
                 max_seq_length: Optional[int] = None,
                 overwrite_cache=False,
                 mode: Split = Split.train,
+                threads: int = 1
         ):
             # Load data features from cache or dataset file
             cached_features_file = os.path.join(
@@ -263,25 +267,34 @@ if is_torch_available():
                 else:
                     logger.info(f"Creating features from dataset file at {data_dir}")
                     examples = token_classification_task.read_examples_from_file(data_dir, mode)
-                    # TODO clean up all this to leverage built-in features of tokenizers
-                    self.features = token_classification_task.convert_examples_to_features(
-                        examples,
-                        labels,
-                        max_seq_length,
-                        tokenizer,
-                        cls_token_at_end=bool(model_type in ["xlnet"]),
-                        # xlnet has a cls token at the end
-                        cls_token=tokenizer.cls_token,
-                        cls_token_segment_id=2 if model_type in ["xlnet"] else 0,
-                        sep_token=tokenizer.sep_token,
-                        sep_token_extra=False,
-                        # roberta uses an extra separator b/w pairs of sentences,
-                        # cf. github.com/pytorch/fairseq/commit/1684e166e3da03f5b600dbb7855cb98ddfcd0805
-                        pad_on_left=bool(tokenizer.padding_side == "left"),
-                        pad_token=tokenizer.pad_token_id,
-                        pad_token_segment_id=tokenizer.pad_token_type_id,
-                        pad_token_label_id=self.pad_token_label_id,
-                    )
+
+                    threads = min(threads, cpu_count())
+                    with Pool(threads) as p:
+                        annotate_ = partial(
+                            token_classification_task.convert_examples_to_features,
+                            labels=labels,
+                            max_seq_length=max_seq_length,
+                            tokenizer=tokenizer,
+                            cls_token_at_end=bool(model_type in ["xlnet"]),
+                            # xlnet has a cls token at the end
+                            cls_token=tokenizer.cls_token,
+                            cls_token_segment_id=2 if model_type in ["xlnet"] else 0,
+                            sep_token=tokenizer.sep_token,
+                            sep_token_extra=False,
+                            # roberta uses an extra separator b/w pairs of sentences,
+                            # cf. github.com/pytorch/fairseq/commit/1684e166e3da03f5b600dbb7855cb98ddfcd0805
+                            pad_on_left=bool(tokenizer.padding_side == "left"),
+                            pad_token=tokenizer.pad_token_id,
+                            pad_token_segment_id=tokenizer.pad_token_type_id,
+                            pad_token_label_id=self.pad_token_label_id
+                        )
+                        self.features = list(
+                            tqdm(
+                                p.imap(annotate_, examples, chunksize=32),
+                                total=len(examples),
+                                desc=f"convert {token_classification_task.__class__.__name__} examples to features"
+                            )
+                        )
                     logger.info(f"Saving features into cached file {cached_features_file}")
                     torch.save(self.features, cached_features_file)
 

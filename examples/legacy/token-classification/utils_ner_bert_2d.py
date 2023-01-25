@@ -237,7 +237,8 @@ if is_torch_available():
                 max_seq_length: Optional[int] = None,
                 overwrite_cache=False,
                 mode: Split = Split.train,
-                threads: int = 1
+                threads: int = 1,
+                features_as_dict=False
         ):
             # Load data features from cache or dataset file
             cached_features_file = os.path.join(
@@ -285,6 +286,8 @@ if is_torch_available():
                             )
                         )
                     self.features = [feature[0] for feature in features]
+                    if features_as_dict:
+                        self.features = [vars(feature) for feature in self.features]
                     logger.info(f"Saving features into cached file {cached_features_file}")
                     torch.save(self.features, cached_features_file)
 

@@ -208,6 +208,7 @@ def main():
             overwrite_cache=data_args.overwrite_cache,
             mode=Split.train,
             threads=data_args.threads,
+            features_as_dict=training_args.fp16,
         )
         if training_args.do_train
         else None
@@ -223,6 +224,7 @@ def main():
             overwrite_cache=data_args.overwrite_cache,
             mode=Split.dev,
             threads=data_args.threads,
+            features_as_dict=training_args.fp16,
         )
         if training_args.do_eval
         else None
@@ -255,7 +257,6 @@ def main():
 
     # Data collator
     data_collator = DataCollatorWithPadding(tokenizer, pad_to_multiple_of=8) if training_args.fp16 else None
-
     # Initialize our Trainer
     trainer = Trainer(
         model=model,
@@ -306,6 +307,7 @@ def main():
             overwrite_cache=data_args.overwrite_cache,
             mode=Split.test,
             threads=data_args.threads,
+            features_as_dict=training_args.fp16,
         )
 
         predictions, label_ids, metrics = trainer.predict(test_dataset)

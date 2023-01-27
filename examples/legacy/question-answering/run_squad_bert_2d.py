@@ -751,9 +751,6 @@ def main():
     # Set seed
     set_seed(args)
 
-    # DEBUG
-    input("Debug:")
-
     # Load pretrained model and tokenizer
     if args.local_rank not in [-1, 0]:
         # Make sure only the first process in distributed training will download model & vocab

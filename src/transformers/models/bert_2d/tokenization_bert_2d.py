@@ -207,7 +207,7 @@ class Bert2dTokenizer(PreTrainedTokenizer):
 
     def convert_tokens_to_string(self, tokens):
         """Converts a sequence of tokens (string) in a single string."""
-        out_string = " ".join(tokens).replace("##", "").replace(" ##", "").strip()
+        out_string = " ".join(tokens).replace(" ##", "").replace("##", "").strip()
         return out_string
 
     def build_inputs_with_special_tokens(

@@ -461,7 +461,7 @@ def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=Fal
             threads=args.threads,
         )
 
-        if args.local_rank in [-1, 0] and not args.debug:
+        if not args.no_cache and args.local_rank in [-1, 0]:
             logger.info("Saving features into cached file %s", cached_features_file)
             torch.save({"features": features, "dataset": dataset, "examples": examples}, cached_features_file)
 
@@ -686,7 +686,7 @@ def main():
     parser.add_argument("--restart_new_sentence", action="store_true", help="Whether to restart new sentence.")
 
     # DEBUG
-    parser.add_argument("--debug", action="store_true", help="Whether to run in debug mode.")
+    parser.add_argument("--no_cache", action="store_true", help="Whether to store cache.")
 
     args = parser.parse_args()
 

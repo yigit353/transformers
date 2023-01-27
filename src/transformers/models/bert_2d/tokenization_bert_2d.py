@@ -513,11 +513,7 @@ class BasicTokenizer(object):
                         token = self._run_strip_accents(token)
                 elif self.strip_accents:
                     token = self._run_strip_accents(token)
-            if self.do_split_on_punc:
-                split_tokens.extend(self._run_split_on_punc(token, never_split))
-            else:
-                split_tokens.append(token)
-
+            split_tokens.extend(self._run_split_on_punc(token, self.do_split_on_punc, never_split))
         output_tokens = whitespace_tokenize(" ".join(split_tokens))
         return output_tokens
 
@@ -532,7 +528,28 @@ class BasicTokenizer(object):
             output.append(char)
         return "".join(output)
 
-    def _run_split_on_punc(self, text, never_split=None):
+    @staticmethod
+    def _is_punctuation(char):
+        """Checks whether `chars` is a punctuation character."""
+        # The character is not a punctuation character to split
+        # if it is ".", "'", or "_"
+        if char in ['.', '\'', '_']:
+            return False
+
+        cp = ord(char)
+        # We treat all non-letter/number ASCII as punctuation.
+        # Characters such as "^", "$", and "`" are not in the Unicode
+        # Punctuation class, but we treat them as punctuation anyway, for
+        # consistency.
+        if ((33 <= cp <= 47) or (58 <= cp <= 64) or
+                (91 <= cp <= 96) or (123 <= cp <= 126)):
+            return True
+        cat = unicodedata.category(char)
+        if cat.startswith("P"):
+            return True
+        return False
+
+    def _run_split_on_punc(self, text, do_split_on_punc=True, never_split=None):
         """Splits punctuation on a piece of text."""
         if never_split is not None and text in never_split:
             return [text]
@@ -542,7 +559,8 @@ class BasicTokenizer(object):
         output = []
         while i < len(chars):
             char = chars[i]
-            if _is_punctuation(char):
+            is_punctuation = _is_punctuation(char) if do_split_on_punc else self._is_punctuation(char)
+            if is_punctuation:
                 output.append([char])
                 start_new_word = True
             else:

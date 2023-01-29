@@ -236,6 +236,7 @@ if is_torch_available():
                 model_type: str,
                 max_seq_length: Optional[int] = None,
                 overwrite_cache=False,
+                no_cache=False,
                 mode: Split = Split.train,
                 threads: int = 1,
                 features_as_dict=False
@@ -251,7 +252,7 @@ if is_torch_available():
             lock_path = cached_features_file + ".lock"
             with FileLock(lock_path):
 
-                if os.path.exists(cached_features_file) and not overwrite_cache:
+                if os.path.exists(cached_features_file) and not overwrite_cache and not no_cache:
                     logger.info(f"Loading features from cached file {cached_features_file}")
                     self.features = torch.load(cached_features_file)
                 else:
@@ -289,7 +290,8 @@ if is_torch_available():
                     if features_as_dict:
                         self.features = [vars(feature) for feature in self.features]
                     logger.info(f"Saving features into cached file {cached_features_file}")
-                    torch.save(self.features, cached_features_file)
+                    if not no_cache:
+                        torch.save(self.features, cached_features_file)
 
         def __len__(self):
             return len(self.features)

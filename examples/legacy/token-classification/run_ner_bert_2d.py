@@ -100,6 +100,10 @@ class DataTrainingArguments:
     overwrite_cache: bool = field(
         default=False, metadata={"help": "Overwrite the cached training and evaluation sets"}
     )
+
+    no_cache: bool = field(
+        default=False
+    )
     threads: int = field(default=1, metadata={"help": "multiple threads for converting example to features"})
 
 
@@ -206,6 +210,7 @@ def main():
             model_type=config.model_type,
             max_seq_length=data_args.max_seq_length,
             overwrite_cache=data_args.overwrite_cache,
+            no_cache=data_args.no_cache,
             mode=Split.train,
             threads=data_args.threads,
             features_as_dict=training_args.fp16,
@@ -222,6 +227,7 @@ def main():
             model_type=config.model_type,
             max_seq_length=data_args.max_seq_length,
             overwrite_cache=data_args.overwrite_cache,
+            no_cache=data_args.no_cache,
             mode=Split.dev,
             threads=data_args.threads,
             features_as_dict=training_args.fp16,
@@ -305,6 +311,7 @@ def main():
             model_type=config.model_type,
             max_seq_length=data_args.max_seq_length,
             overwrite_cache=data_args.overwrite_cache,
+            no_cache=data_args.no_cache,
             mode=Split.test,
             threads=data_args.threads,
             features_as_dict=training_args.fp16,
